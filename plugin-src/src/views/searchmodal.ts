@@ -1,0 +1,355 @@
+import { projectNotes } from "@/utils/contentproject";
+import { MyUtil } from "@/utils/myutil";
+import SvgUtil from "@/utils/svgutil";
+import { t } from "@/i18n";
+import { App, Modal, SearchComponent, TFile } from "obsidian";
+import StartPagePlugin from "@/main";
+import { VIEW_TYPE_START_PAGE } from "@/views/startpageview";
+
+export default class SearchModal extends Modal {
+	private searchComponent: SearchComponent;
+	private allFiles: TFile[];
+	private filteredResults: TFile[];
+	private resultsContainer: HTMLElement;
+	private onChooseItem: (item: TFile) => void;
+	private initialQuery: string = "";
+	private selectedIndex: number = -1;
+	private caseSensitive: boolean = false;
+	private plugin: StartPagePlugin;
+
+	constructor(app: App, plugin: StartPagePlugin, onChoose: (item: TFile) => void, initialQuery: string = "") {
+		super(app);
+		this.plugin = plugin;
+		this.setTitle(t("search_modal_title"));
+		this.allFiles = plugin.settings.contentProjectFolder ? projectNotes(app, plugin.settings) : this.app.vault.getFiles();
+		this.filteredResults = [];
+		this.onChooseItem = onChoose;
+		this.initialQuery = initialQuery;
+	}
+
+	onOpen() {
+		const { contentEl, modalEl } = this;
+		contentEl.addClass("my-search-content");
+		modalEl.addClass("my-search-modal");
+		modalEl.classList.toggle("cw-search-modal", this.plugin.settings.creatorMode);
+
+		const searchContainer = contentEl.createDiv("search-container");
+
+		this.searchComponent = new SearchComponent(searchContainer);
+		this.searchComponent.setPlaceholder(t("search_placeholder")).onChange((value: string) => {
+			this.performSearch(value);
+		});
+
+		const excludeSettingsBtn = searchContainer.createEl("button", {
+			cls: "search-exclude-settings-btn",
+			attr: {
+				"title": this.getExcludeTooltip()
+			}
+		});
+		const filterIcon = SvgUtil.createFilterIcon();
+		excludeSettingsBtn.appendChild(filterIcon);
+
+		excludeSettingsBtn.addEventListener("click", (e) => {
+			e.preventDefault();
+			this.openExcludeSettings();
+		});
+
+		const caseSensitiveBtn = searchContainer.createEl("button", {
+			cls: "search-case-sensitive-btn",
+			attr: {
+				"title": t("case_sensitive")
+			}
+		});
+		caseSensitiveBtn.setText("Aa");
+
+		this.updateCaseSensitiveButton(caseSensitiveBtn);
+
+		caseSensitiveBtn.addEventListener("click", (e) => {
+			e.preventDefault();
+			this.caseSensitive = !this.caseSensitive;
+			this.updateCaseSensitiveButton(caseSensitiveBtn);
+			const currentQuery = this.searchComponent.getValue();
+			if (currentQuery) {
+				this.performSearch(currentQuery);
+			}
+		});
+
+		this.resultsContainer = contentEl.createDiv("search-results-container");
+
+		if (this.initialQuery) {
+			this.searchComponent.setValue(this.initialQuery);
+			this.performSearch(this.initialQuery);
+		}
+
+		this.searchComponent.inputEl.focus();
+		this.setupKeyboardNavigation();
+	}
+
+	onClose() {
+		const { contentEl } = this;
+		contentEl.empty();
+	}
+
+	updateCaseSensitiveButton(button: HTMLElement) {
+		if (this.caseSensitive) {
+			button.addClass("is-active");
+		} else {
+			button.removeClass("is-active");
+		}
+	}
+
+	performSearch(query: string) {
+		if (query === "") {
+			this.filteredResults = [];
+		} else {
+			if (this.caseSensitive) {
+				this.filteredResults = this.allFiles.filter((file) => {
+					if (MyUtil.isFileExcluded(this.plugin.settings, file)) {
+						return false;
+					}
+					
+					if (file.name.includes(query)) {
+						return true;
+					}
+					
+					const cache = this.app.metadataCache.getFileCache(file);
+					const aliases = cache?.frontmatter?.aliases || cache?.frontmatter?.alias;
+					if (aliases) {
+						const aliasArray = Array.isArray(aliases) ? aliases : [aliases];
+						return aliasArray.some((alias: string) => 
+							typeof alias === 'string' && alias.includes(query)
+						);
+					}
+					
+					return false;
+				});
+			} else {
+				const lowerCaseQuery = query.toLowerCase();
+				this.filteredResults = this.allFiles.filter((file) => {
+					if (MyUtil.isFileExcluded(this.plugin.settings, file)) {
+						return false;
+					}
+					
+					if (file.name.toLowerCase().includes(lowerCaseQuery)) {
+						return true;
+					}
+					
+					const cache = this.app.metadataCache.getFileCache(file);
+					const aliases = cache?.frontmatter?.aliases || cache?.frontmatter?.alias;
+					if (aliases) {
+						const aliasArray = Array.isArray(aliases) ? aliases : [aliases];
+						return aliasArray.some((alias: string) => 
+							typeof alias === 'string' && alias.toLowerCase().includes(lowerCaseQuery)
+						);
+					}
+					
+					return false;
+				});
+			}
+		}
+
+		this.renderResults();
+	}
+
+	renderResults() {
+		this.resultsContainer.empty();
+		this.selectedIndex = -1;
+
+		if (this.filteredResults.length === 0) {
+			const emptyEl = this.resultsContainer.createDiv("search-empty-state");
+			const query = this.searchComponent.getValue();
+			if (query) {
+				const [beforeEnter, rest] = t("no_results_press_enter").split("{enter}");
+				const [beforeQuery, afterQuery] = rest.split("{query}");
+				emptyEl.appendText(beforeEnter);
+				emptyEl.createEl("b", { text: t("enter_key") });
+				emptyEl.appendText(beforeQuery);
+				emptyEl.createEl("b", { text: query });
+				emptyEl.appendText(afterQuery);
+			} else {
+				emptyEl.setText(t("no_results"));
+			}
+			return;
+		}
+
+		const listEl = this.resultsContainer.createEl("ul", { cls: "search-results-list" });
+		for (let i = 0; i < this.filteredResults.length; i++) {
+			const file = this.filteredResults[i];
+			const itemEl = listEl.createEl("li", { cls: "search-result-item" });
+			const fileNameWithoutExt = MyUtil.getFileNameWithoutExtension(file.name);
+
+			const fileNameEl = document.createElement("span");
+			fileNameEl.addClass("search-result-item-file-name");
+			fileNameEl.setText(fileNameWithoutExt);
+			itemEl.setAttribute("title", fileNameWithoutExt);
+			itemEl.appendChild(fileNameEl);
+
+			const query = this.searchComponent.getValue();
+			const cache = this.app.metadataCache.getFileCache(file);
+			const aliases = cache?.frontmatter?.aliases || cache?.frontmatter?.alias;
+			const matchedAlias = this.getMatchedAlias(aliases, query);
+			
+			const extEl = document.createElement("span");
+			extEl.addClass("search-result-item-ext");
+			itemEl.appendChild(extEl);
+			extEl.setText(file.extension.toUpperCase());
+
+			if (matchedAlias) {
+				const aliasEl = document.createElement("span");
+				aliasEl.addClass("search-result-item-alias");
+				aliasEl.setText(matchedAlias);
+				itemEl.appendChild(aliasEl);
+			}
+
+			if (file.parent && !file.parent.isRoot()) {
+				const folderName = file.parent.name;
+				const folderNameEl = document.createElement("span");
+				const folderIconEl = SvgUtil.createFolderIcon();
+
+				folderNameEl.setText(folderName);
+
+				folderNameEl.addClass("search-result-item-folder-name");
+				folderIconEl.addClass("search-result-item-folder-icon");
+
+				itemEl.appendChild(folderIconEl);
+				itemEl.appendChild(folderNameEl);
+			}
+
+			itemEl.onClickEvent(() => {
+				this.onChooseItem(file);
+				this.close();
+			});
+
+			itemEl.addEventListener("mouseenter", (event) => {
+				this.app.workspace.trigger("hover-link", {
+					event: event,
+					source: VIEW_TYPE_START_PAGE,
+					hoverParent: itemEl,
+					targetEl: itemEl,
+					linktext: file.path,
+					sourcePath: "",
+				});
+			});
+		}
+
+		if (this.filteredResults.length > 0) {
+			this.setActiveIndex(0);
+		}
+	}
+
+	setupKeyboardNavigation() {
+		this.searchComponent.inputEl.addEventListener('keydown', (e: KeyboardEvent) => {
+			if (e.key === 'Enter') {
+				e.preventDefault();
+
+				if (this.filteredResults.length === 0) {
+					const query = this.searchComponent.getValue().trim();
+					if (query) {
+						this.createNewNote(query);
+					}
+				} else if (this.selectedIndex >= 0 && this.selectedIndex < this.filteredResults.length) {
+					const selectedFile = this.filteredResults[this.selectedIndex];
+					this.onChooseItem(selectedFile);
+					this.close();
+				}
+				return;
+			}
+
+			if (this.filteredResults.length === 0) return;
+
+			if (e.key === 'ArrowDown') {
+				e.preventDefault();
+				this.setActiveIndex((this.selectedIndex + 1) % this.filteredResults.length);
+			} else if (e.key === 'ArrowUp') {
+				e.preventDefault();
+				const newIndex = this.selectedIndex - 1;
+				this.setActiveIndex(newIndex < 0 ? this.filteredResults.length - 1 : newIndex);
+			}
+		});
+	}
+
+	setActiveIndex(index: number) {
+		const items = this.resultsContainer.querySelectorAll('.search-result-item');
+
+		items.forEach(item => item.removeClass('is-active'));
+
+		if (index >= 0 && index < items.length) {
+			this.selectedIndex = index;
+			items[index].addClass('is-active');
+
+			items[index].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+		}
+	}
+
+	async createNewNote(noteName: string) {
+		try {
+			const sanitizedName = noteName.replace(/[\\/:*?"<>|]/g, '');
+			const fileName = `${sanitizedName}.md`;
+
+			const existingFile = this.app.vault.getAbstractFileByPath(fileName);
+			if (existingFile) {
+				if (existingFile instanceof TFile) {
+					await this.app.workspace.getLeaf().openFile(existingFile);
+				}
+			} else {
+				const newFile = await this.app.vault.create(fileName, '');
+				await this.app.workspace.getLeaf().openFile(newFile);
+			}
+
+			this.close();
+		} catch (error) {
+			console.error('Failed to create new note:', error);
+		}
+	}
+
+	private getMatchedAlias(aliases: string | string[] | undefined, query: string): string | null {
+		if (!aliases || !query) return null;
+		
+		const aliasArray = Array.isArray(aliases) ? aliases : [aliases];
+		const searchQuery = this.caseSensitive ? query : query.toLowerCase();
+		
+		for (const alias of aliasArray) {
+			if (typeof alias !== 'string') continue;
+			
+			const aliasToCheck = this.caseSensitive ? alias : alias.toLowerCase();
+			if (aliasToCheck.includes(searchQuery)) {
+				return alias;
+			}
+		}
+		
+		return null;
+	}
+
+	private getExcludeTooltip(): string {
+		const excludeList = this.plugin.settings.searchExcludePaths;
+		const excludeExtensions = this.plugin.settings.searchExcludeExtensions;
+		
+		if (excludeList.length === 0 && excludeExtensions.length === 0) {
+			return t("search_exclude_settings_tooltip").replace("{list}", t("no_results"));
+		}
+		
+		const items: string[] = [];
+		
+		if (excludeList.length > 0) {
+			const displayList = excludeList.length <= 2
+				? excludeList.join(", ")
+				: excludeList.slice(0, 2).join(", ") + "...";
+			items.push(displayList);
+		}
+		
+		if (excludeExtensions.length > 0) {
+			const extDisplay = excludeExtensions.length <= 2
+				? excludeExtensions.map(ext => `.${ext}`).join(", ")
+				: excludeExtensions.slice(0, 2).map(ext => `.${ext}`).join(", ") + "...";
+			items.push(extDisplay);
+		}
+		
+		return t("search_exclude_settings_tooltip").replace("{list}", items.join(" | "));
+	}
+
+	private openExcludeSettings() {
+		this.close();
+		(this.app as any).setting.open();
+		(this.app as any).setting.openTabById(this.plugin.manifest.id);
+	}
+}

@@ -1,0 +1,15 @@
+/* Companion styling for Minimal 9.1.4, Navigator 3.4.3 and Editing Toolbar 4.1.10. */
+body.theme-light { --background-primary:#fdfdfc; --background-primary-alt:#f9f9f8; --background-secondary:#f3f3f2; --background-secondary-alt:#eeeeec; --text-normal:#21201c; --text-muted:#63635e; --background-modifier-border:#e2e1de; --interactive-accent:#42634c; }
+body.theme-dark { --background-primary:#111110; --background-primary-alt:#191918; --background-secondary:#212120; --background-secondary-alt:#292928; --text-normal:#eeeeec; --text-muted:#b5b3ad; --background-modifier-border:#3b3a37; --interactive-accent:#adc4a6; }
+body { --font-interface:"Avenir Next","PingFang SC","Microsoft YaHei",sans-serif; --font-text:"Avenir Next","PingFang SC","Microsoft YaHei",sans-serif; }
+.workspace-leaf-content[data-type="leoliu-agent-workbench-view"] .view-header { display:none; }
+.workspace-leaf-content[data-type="leoliu-agent-workbench-view"] .view-content { padding:0; overflow-y:auto; }
+.notebook-navigator { --nn-theme-navitem-border-radius:5px; --nn-theme-file-border-radius:5px; }
+.editingToolbarModalBar.top { border:0 !important; border-bottom:1px solid var(--background-modifier-border) !important; border-radius:0 !important; box-shadow:none !important; background:var(--background-primary) !important; padding:8px 12px !important; display:flex !important; align-items:center; flex-wrap:wrap; gap:3px; max-width:100%; }
+.editingToolbarModalBar.top button.editingToolbarCommandItem { width:auto !important; min-width:56px; height:38px !important; padding:7px 10px !important; display:inline-flex; align-items:center; gap:7px; border:0 !important; border-radius:5px !important; color:var(--text-normal); }
+.editingToolbarModalBar.top button.editingToolbarCommandItem::after { font-size:13px; font-family:var(--font-interface); white-space:nowrap; content:attr(aria-label); }
+@media (max-width:600px) {
+ body .editingToolbarModalBar.top { width:100% !important; max-width:100% !important; min-width:0 !important; height:auto !important; min-height:54px !important; box-sizing:border-box; flex-wrap:nowrap !important; justify-content:flex-start !important; overflow-x:auto !important; padding:5px 8px !important; }
+ .editingToolbarModalBar.top button.editingToolbarCommandItem { flex-shrink:0; min-width:66px; height:44px !important; padding:9px !important; }
+ .editingToolbarModalBar.top button.editingToolbarCommandItem::after { display:inline; font-size:12px; }
+}

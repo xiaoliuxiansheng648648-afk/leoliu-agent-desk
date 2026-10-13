@@ -1,0 +1,476 @@
+import { App, PluginSettingTab, Setting, Platform, TextComponent, ToggleComponent, Notice, TFolder, ButtonComponent, getLanguage } from "obsidian";
+import StartPagePlugin from "@/main";
+import { VIEW_TYPE_START_PAGE, StartPageView } from "@/views/startpageview";
+import { t, setLocale } from "@/i18n";
+	import StyleSettingsModal from "@/views/stylesettingsmodal";
+	import SearchExclusionModal from "@/views/searchexclusionmodal";
+	import PinnedNotesModal from "@/views/pinnednotesmodal";
+	import TabFoldersModal from "@/views/tabfoldersmodal";
+	import { MyUtil } from "@/utils/myutil";
+	import { NewNoteUtil } from "@/utils/newnoteutil";
+
+export class StartPageSettingTab extends PluginSettingTab {
+	plugin: StartPagePlugin;
+	useRandomFooterTextComponent: ToggleComponent;
+	customFooterTextComponent: TextComponent;
+
+	constructor(app: App, plugin: StartPagePlugin) {
+		super(app, plugin);
+		this.plugin = plugin;
+	}
+
+	private updateTitleNavigationBar() {
+		const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_START_PAGE);
+		leaves.forEach((leaf) => {
+			if (leaf.view instanceof StartPageView) {
+				const view = leaf.view;
+				if (this.plugin.settings.showTitleNavigationBar === "show") {
+					view.showTitleNavigationBar(true);
+				} else if (this.plugin.settings.showTitleNavigationBar === "hide") {
+					view.showTitleNavigationBar(false);
+				} else { 
+					view.showTitleNavigationBar(!Platform.isDesktop);
+				}
+			}
+		});
+	}
+
+	updateFootComponentDisabledState() {
+		if (this.customFooterTextComponent) {
+			this.customFooterTextComponent.setDisabled(!this.plugin.settings.showCustomFooterText || this.plugin.settings.useRandomFooterText);
+		}
+		if (this.useRandomFooterTextComponent) {
+			this.useRandomFooterTextComponent.setDisabled(!this.plugin.settings.showCustomFooterText);
+		}
+	}
+
+	display(): void {
+		const { containerEl } = this;
+		containerEl.empty();
+		this.createCreatorSettings(containerEl);
+
+        this.createGeneralSettings(containerEl);
+        this.createAppearanceSettings(containerEl);
+        this.createStyleSettings(containerEl);
+        this.createNewTabSettings(containerEl);
+        this.createNewNoteSettings(containerEl);
+        this.createSearchSettings(containerEl);
+        this.createBackupSettings(containerEl);
+		this.createPinnedNotesSettings(containerEl);
+		this.createFolderTabsSettings(containerEl);
+		this.createFooterSettings(containerEl);
+
+		window.setTimeout(() => {
+			this.updateFootComponentDisabledState();
+		}, 0);
+	}
+
+	private createCreatorSettings(containerEl: HTMLElement) {
+		new Setting(containerEl).setName(t("creator_settings")).setHeading();
+		new Setting(containerEl).setName(t("agent_project_name")).setDesc(t("agent_project_name_desc"))
+			.addText(text => text.setValue(this.plugin.settings.agentProjectName).onChange(async value => {
+				this.plugin.settings.agentProjectName = value.trim();
+				await this.plugin.saveSettings();
+				MyUtil.refreshStartPage(this.app);
+			}));
+		new Setting(containerEl).setName("本期目录").setDesc("相对库根目录；例如 obs-agent-desk。填 / 表示当前库就是本期目录。")
+			.addText(text => text.setValue(this.plugin.settings.contentProjectFolder).onChange(async value => {
+				this.plugin.settings.contentProjectFolder = value.trim();
+				await this.plugin.saveSettings(); MyUtil.refreshStartPage(this.app);
+			}));
+		new Setting(containerEl).setName(t("language"))
+			.addDropdown(dropdown => dropdown.addOption("auto", t("creator_language_auto"))
+				.addOption("zh", "中文").addOption("en", "English")
+				.setValue(this.plugin.settings.displayLanguage).onChange(async value => {
+					this.plugin.settings.displayLanguage = value as "auto" | "zh" | "en";
+					setLocale(value === "auto" ? getLanguage() : value);
+					await this.plugin.saveSettings();
+					MyUtil.refreshStartPage(this.app);
+					this.display();
+				}));
+		new Setting(containerEl)
+			.setName(t("creator_mode"))
+			.setDesc(t("creator_mode_desc"))
+			.addToggle(toggle => toggle.setValue(this.plugin.settings.creatorMode).onChange(async value => {
+				this.plugin.settings.creatorMode = value;
+				await this.plugin.saveSettings();
+				MyUtil.refreshStartPage(this.app);
+			}));
+		const fields = [
+			{ key: "creatorInboxFolder" as const, name: t("creator_inbox_folder") },
+			{ key: "creatorDraftFolder" as const, name: t("creator_draft_folder") },
+			{ key: "creatorDailyFolder" as const, name: t("creator_daily_folder") },
+			{ key: "creatorAcceptanceFolder" as const, name: t("creator_acceptance_folder") },
+		];
+		for (const field of fields) {
+			new Setting(containerEl).setName(field.name).setDesc(t("creator_folder_desc"))
+				.addText(text => text.setValue(this.plugin.settings[field.key]).onChange(async value => {
+					this.plugin.settings[field.key] = value.trim();
+					await this.plugin.saveSettings();
+				}));
+		}
+	}
+
+	private createGeneralSettings(containerEl: HTMLElement) {
+        new Setting(containerEl)
+            .setName(t("general_settings_heading"))
+            .setHeading();
+        new Setting(containerEl)
+			.setName(t("include_all_files_in_recent"))
+			.setDesc(t("include_all_files_in_recent_desc"))
+			.addToggle((toggle) => {
+				toggle.setValue(this.plugin.settings.includeAllFilesInRecent);
+				toggle.onChange(async (value) => {
+					this.plugin.settings.includeAllFilesInRecent = value;
+					await this.plugin.saveSettings();
+					MyUtil.refreshStartPage(this.app);
+				});
+			});
+
+		new Setting(containerEl)
+			.setName(t("show_recent_accessed_notes"))
+			.setDesc(t("show_recent_accessed_notes_desc"))
+			.addToggle((toggle) => {
+				toggle.setValue(this.plugin.settings.showRecentAccessedNotes);
+				toggle.onChange(async (value) => {
+					this.plugin.settings.showRecentAccessedNotes = value;
+					await this.plugin.saveSettings();
+					MyUtil.refreshStartPage(this.app);
+				});
+			});
+
+		new Setting(containerEl)
+			.setName(t("recent_notes_limit"))
+			.setDesc(t("recent_notes_limit_desc"))
+			.addDropdown((dropdown) => {
+				for (let i = 5; i <= 50; i += 5) {
+					dropdown.addOption(i.toString(), i.toString());
+				}
+				dropdown.setValue(this.plugin.settings.recentNotesLimit.toString());
+				dropdown.onChange(async (value) => {
+					this.plugin.settings.recentNotesLimit = parseInt(value);
+					await this.plugin.saveSettings();
+					MyUtil.refreshStartPage(this.app);
+				});
+			});
+    }
+
+    private createAppearanceSettings(containerEl: HTMLElement) {
+        new Setting(containerEl)
+            .setName(t("appearance_settings_heading"))
+            .setHeading();
+        new Setting(containerEl)
+			.setName(t("show_title_navigation_bar"))
+			.setDesc(t("show_title_navigation_bar_desc"))
+			.addDropdown((dropdown) => {
+				dropdown.addOption("default", t("show_title_navigation_bar_default"));
+				dropdown.addOption("show", t("show_title_navigation_bar_show"));
+				dropdown.addOption("hide", t("show_title_navigation_bar_hide"));
+				dropdown.setValue(this.plugin.settings.showTitleNavigationBar);
+				dropdown.onChange(async (value: "default" | "show" | "hide") => {
+					this.plugin.settings.showTitleNavigationBar = value;
+					await this.plugin.saveSettings();
+					this.updateTitleNavigationBar();
+				});
+			});
+		new Setting(containerEl)
+			.setName(t("show_stat_bar"))
+			.setDesc(t("show_stat_bar_desc"))
+			.addToggle((toggle) => {
+				toggle.setValue(this.plugin.settings.showStatBar);
+				toggle.onChange(async (value) => {
+					this.plugin.settings.showStatBar = value;
+					await this.plugin.saveSettings();
+					MyUtil.refreshStartPage(this.app);
+				});
+			});
+    }
+
+    private createStyleSettings(containerEl: HTMLElement) {
+        new Setting(containerEl)
+            .setName(t("style_settings_heading"))
+            .setDesc(t("style_settings_desc"))
+            .addButton(button => {
+                button
+                    .setButtonText(t("style_settings_open_button"))
+                    .onClick(() => {
+                        new StyleSettingsModal(this.app, this.plugin, () => {
+                            MyUtil.refreshStartPage(this.app);
+                        }).open();
+                    });
+            });
+    }
+
+    private createNewTabSettings(containerEl: HTMLElement) {
+        new Setting(containerEl)
+            .setName(t("new_tab_settings_heading"))
+            .setHeading();
+		new Setting(containerEl)
+				.setName(t("replace_new_tab"))
+				.setDesc(t("replace_new_tab_desc"))
+				.addToggle((toggle) => {
+					toggle.setValue(this.plugin.settings.replaceNewTab);
+					toggle.onChange(async (value) => {
+						this.plugin.settings.replaceNewTab = value;
+						await this.plugin.saveSettings();
+					});
+				});
+
+			new Setting(containerEl)
+				.setName(t("open_notes_in_new_tab"))
+				.setDesc(t("open_notes_in_new_tab_desc"))
+				.addToggle((toggle) => {
+					toggle.setValue(this.plugin.settings.openNotesInNewTab);
+					toggle.onChange(async (value) => {
+						this.plugin.settings.openNotesInNewTab = value;
+						await this.plugin.saveSettings();
+					});
+				});
+	    }
+
+    private createNewNoteSettings(containerEl: HTMLElement) {
+        new Setting(containerEl)
+            .setName(t("new_note_settings_heading"))
+            .setHeading();
+
+        const templateSetting = new Setting(containerEl)
+            .setName(t("new_note_title_template"))
+            .setDesc(t("new_note_title_template_desc"));
+
+        let previewEl: HTMLElement;
+
+        templateSetting.addText((text) => {
+            text.setPlaceholder(t("new_note_title_template_placeholder"));
+            text.setValue(this.plugin.settings.newNoteTitleTemplate);
+            text.onChange(async (value) => {
+                this.plugin.settings.newNoteTitleTemplate = value;
+                await this.plugin.saveSettings();
+                this.updateNewNotePreview(previewEl);
+            });
+        });
+
+        previewEl = containerEl.createDiv({ cls: "new-note-template-preview" });
+        this.updateNewNotePreview(previewEl);
+
+        const folderSetting = new Setting(containerEl)
+            .setName(t("new_note_folder"))
+            .setDesc(t("new_note_folder_desc"));
+
+        let folderTextComponent: TextComponent;
+
+        folderSetting.addText((text) => {
+            folderTextComponent = text;
+            text.setPlaceholder(t("new_note_folder_placeholder"));
+            text.setValue(this.plugin.settings.newNoteFolderPath);
+            text.onChange(async (value) => {
+                this.plugin.settings.newNoteFolderPath = value.trim();
+                await this.plugin.saveSettings();
+            });
+        });
+
+        folderSetting.addExtraButton((button) => {
+            button
+                .setIcon("folder-open")
+                .setTooltip(t("new_note_folder_select"))
+                .onClick(() => {
+                    import("@/views/foldersuggestmodal").then((module) => {
+                        const FolderSuggestModal = module.default;
+                        new FolderSuggestModal(this.app, async (folder: TFolder) => {
+                            const folderPath = folder.isRoot() ? "" : folder.path;
+                            this.plugin.settings.newNoteFolderPath = folderPath;
+                            await this.plugin.saveSettings();
+                            folderTextComponent.setValue(folderPath);
+                        }).open();
+                    });
+                });
+        });
+
+        folderSetting.addExtraButton((button) => {
+            button
+                .setIcon("x")
+                .setTooltip(t("new_note_folder_clear"))
+                .onClick(async () => {
+                    this.plugin.settings.newNoteFolderPath = "";
+                    await this.plugin.saveSettings();
+                    folderTextComponent.setValue("");
+                });
+        });
+
+        new Setting(containerEl)
+            .setName(t("new_note_conflict"))
+            .setDesc(t("new_note_conflict_desc"))
+            .addDropdown((dropdown) => {
+                dropdown.addOption("duplicate", t("new_note_conflict_duplicate"));
+                dropdown.addOption("open", t("new_note_conflict_open"));
+                dropdown.setValue(this.plugin.settings.newNoteConflict);
+                dropdown.onChange(async (value: "duplicate" | "open") => {
+                    this.plugin.settings.newNoteConflict = value;
+                    await this.plugin.saveSettings();
+                });
+            });
+    }
+
+    private updateNewNotePreview(previewEl: HTMLElement) {
+        const title = NewNoteUtil.renderTitle(this.plugin.settings.newNoteTitleTemplate);
+        previewEl.setText(t("new_note_title_template_preview").replace("{title}", title));
+    }
+
+    private createSearchSettings(containerEl: HTMLElement) {
+        new Setting(containerEl)
+            .setName(t("search_settings_heading"))
+            .setHeading();
+
+        const pathCount = this.plugin.settings.searchExcludePaths.length;
+        const extCount = this.plugin.settings.searchExcludeExtensions.length;
+        const totalCount = pathCount + extCount;
+
+        new Setting(containerEl)
+            .setName(t("search_exclusion_settings"))
+            .setDesc(t("search_exclusion_settings_desc", totalCount.toString()))
+            .addButton((button) => {
+                button.setButtonText(t("search_exclusion_settings_button"))
+                    .setCta()
+                    .onClick(() => {
+                        new SearchExclusionModal(this.app, this.plugin, () => {
+                            this.display();
+							MyUtil.refreshStartPage(this.app);
+                        }).open();
+                    });
+            });
+    }
+
+    private createBackupSettings(containerEl: HTMLElement) {
+        new Setting(containerEl)
+            .setName(t("backup_settings_heading"))
+            .setHeading();
+
+        new Setting(containerEl)
+            .setName(t("backup_max_files"))
+            .setDesc(t("backup_max_files_desc"))
+            .addDropdown((dropdown) => {
+                for (let i = 1; i <= 20; i++) {
+                    dropdown.addOption(i.toString(), i.toString());
+                }
+                dropdown.setValue(this.plugin.settings.backupMaxFiles.toString());
+                dropdown.onChange(async (value) => {
+                    this.plugin.settings.backupMaxFiles = parseInt(value);
+                    await this.plugin.saveSettings();
+                });
+            });
+    }
+
+    private createFooterSettings(containerEl: HTMLElement) {
+        new Setting(containerEl)
+			.setName(t("footer_settings_heading"))
+			.setHeading();
+
+		new Setting(containerEl)
+			.setName(t("show_custom_footer_text"))
+			.setDesc(t("show_custom_footer_text_desc"))
+			.addToggle((toggle) => {
+				toggle.setValue(this.plugin.settings.showCustomFooterText);
+				toggle.onChange(async (value) => {
+					this.plugin.settings.showCustomFooterText = value;
+					if (!value) {
+						this.plugin.settings.useRandomFooterText = false;
+						this.useRandomFooterTextComponent.setValue(false);
+					}
+					await this.plugin.saveSettings();
+					this.updateFootComponentDisabledState();
+					MyUtil.refreshStartPage(this.app);
+				});
+			});
+
+		new Setting(containerEl)
+			.setName(t("use_random_footer_text"))
+			.setDesc(t("use_random_footer_text_desc"))
+			.addToggle((toggle) => {
+				this.useRandomFooterTextComponent = toggle;
+				toggle.setValue(this.plugin.settings.useRandomFooterText);
+				toggle.onChange(async (value) => {
+					this.plugin.settings.useRandomFooterText = value;
+					await this.plugin.saveSettings();
+					this.updateFootComponentDisabledState();
+					MyUtil.refreshStartPage(this.app);
+				});
+			});
+
+		new Setting(containerEl)
+			.setName(t("custom_footer_text"))
+			.setDesc(t("custom_footer_text_desc"))
+			.addText((text) => {
+				this.customFooterTextComponent = text;
+				text.setValue(this.plugin.settings.customFooterText);
+				text.onChange(async (value) => {
+					this.plugin.settings.customFooterText = value;
+					await this.plugin.saveSettings();
+					this.updateFootComponentDisabledState();
+					MyUtil.refreshStartPage(this.app);
+				});
+			});
+    }
+
+    private createPinnedNotesSettings(containerEl: HTMLElement) {
+        this.createPinnedNotesHeading(containerEl);
+        this.createManagePinnedNotesButton(containerEl);
+    }
+
+    private createPinnedNotesHeading(containerEl: HTMLElement) {
+        new Setting(containerEl)
+            .setName(t("pinned_notes_settings_heading"))
+            .setHeading();
+    }
+
+	private createManagePinnedNotesButton(containerEl: HTMLElement) {
+		const pinnedCount = this.plugin.settings.pinnedNotes.length;
+
+		new Setting(containerEl)
+			.setName(t("pinned_notes_settings"))
+			.setDesc(t("current_pinned_notes_desc", pinnedCount.toString()))
+			.addButton((button) => {
+				button
+					.setButtonText(t("manage_pinned_notes_button"))
+					.setCta()
+					.onClick(() => {
+						new PinnedNotesModal(this.app, this.plugin, () => {
+							MyUtil.refreshStartPage(this.app);
+							this.display();
+						}).open();
+					});
+			});
+	}
+
+	private createFolderTabsSettings(containerEl: HTMLElement) {
+		new Setting(containerEl)
+			.setName(t("folder_tabs_settings_heading"))
+			.setHeading();
+
+		new Setting(containerEl)
+			.setName(t("tab_folder_recursive"))
+			.setDesc(t("tab_folder_recursive_desc"))
+			.addToggle((toggle) => {
+				toggle.setValue(this.plugin.settings.tabFolderRecursive);
+				toggle.onChange(async (value) => {
+					this.plugin.settings.tabFolderRecursive = value;
+					await this.plugin.saveSettings();
+					MyUtil.refreshStartPage(this.app);
+				});
+			});
+
+		const folderCount = this.plugin.settings.tabFolderPaths.length;
+		new Setting(containerEl)
+			.setName(t("folder_tabs_settings"))
+			.setDesc(t("folder_tabs_settings_desc"))
+			.addButton((button) => {
+				button
+					.setButtonText(t("manage_folder_tabs_button"))
+					.setCta()
+					.onClick(() => {
+						new TabFoldersModal(this.app, this.plugin, () => {
+							MyUtil.refreshStartPage(this.app);
+							this.display();
+						}).open();
+					});
+			});
+	}
+}

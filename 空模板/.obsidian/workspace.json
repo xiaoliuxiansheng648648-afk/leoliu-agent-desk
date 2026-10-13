@@ -1,0 +1,43 @@
+{
+  "main": {
+    "id": "template-main",
+    "type": "split",
+    "direction": "vertical",
+    "children": [
+      {
+        "id": "template-tabs",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "template-home",
+            "type": "leaf",
+            "state": {
+              "type": "leoliu-agent-workbench-view",
+              "state": {},
+              "icon": "home",
+              "title": "智能体项目台"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "left": {
+    "id": "template-left",
+    "type": "split",
+    "direction": "horizontal",
+    "children": [],
+    "width": 280,
+    "collapsed": true
+  },
+  "right": {
+    "id": "template-right",
+    "type": "split",
+    "direction": "horizontal",
+    "children": [],
+    "width": 280,
+    "collapsed": true
+  },
+  "active": "template-home",
+  "lastOpenFiles": []
+}

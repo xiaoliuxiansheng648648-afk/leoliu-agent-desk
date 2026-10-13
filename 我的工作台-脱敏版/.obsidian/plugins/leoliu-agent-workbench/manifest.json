@@ -1,0 +1,10 @@
+{
+  "id": "leoliu-agent-workbench",
+  "name": "智能体项目工作台",
+  "version": "0.4.3-leoliu.agent.4",
+  "minAppVersion": "1.8.0",
+  "description": "基于 StartPage 的内容智能体工作台：交接、交回、验收证据与每日决定。",
+  "author": "kuzzh; LeoLiu adaptations",
+  "authorUrl": "https://github.com/kuzzh",
+  "isDesktopOnly": false
+}

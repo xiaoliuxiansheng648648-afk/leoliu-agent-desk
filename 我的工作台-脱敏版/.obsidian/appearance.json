@@ -1,0 +1,9 @@
+{
+  "accentColor": "#42634c",
+  "baseFontSize": 17,
+  "cssTheme": "Minimal",
+  "theme": "moonstone",
+  "enabledCssSnippets": [
+    "项目台-统一外观"
+  ]
+}

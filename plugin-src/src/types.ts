@@ -1,0 +1,131 @@
+export interface SVGTag {
+	tagName: string;
+	attributes: SVGTagAttribute;
+}
+
+export interface SVGTagAttribute {
+	[key: string]: string | number | undefined;
+}
+
+export const ID_STAT_TOTAL_NOTES = "totalNotes";
+export const ID_STAT_TODAY_EDITED = "todayEdited";
+export const ID_STAT_TOTAL_SIZE = "totalSize";
+
+export interface SectionStyleSettings {
+	sectionMargin: string;
+	sectionPadding: string;
+	
+	headerMargin: string;
+	headerPadding: string;
+	
+	titleFontSize: string;
+	titleMargin: string;
+	titlePadding: string;
+	
+	listGap: string;
+	
+	itemPadding: string;
+	itemMargin: string;
+	
+	noteTitleFontSize: string;
+	noteTitleMargin: string;
+	noteTitlePadding: string;
+	
+	noteDateFontSize: string;
+	
+	noteFolderFontSize: string;
+}
+
+export const DEFAULT_SECTION_STYLE: SectionStyleSettings = {
+	sectionMargin: "",
+	sectionPadding: "",
+	headerMargin: "",
+	headerPadding: "",
+	titleFontSize: "",
+	titleMargin: "",
+	titlePadding: "",
+	listGap: "",
+	itemPadding: "",
+	itemMargin: "",
+	noteTitleFontSize: "",
+	noteTitleMargin: "",
+	noteTitlePadding: "",
+	noteDateFontSize: "",
+	noteFolderFontSize: "",
+};
+
+export interface StartPageSettings {
+	creatorMode: boolean;
+	displayLanguage: "auto" | "zh" | "en";
+	creatorInboxFolder: string;
+	creatorDraftFolder: string;
+	creatorDailyFolder: string;
+	creatorAcceptanceFolder: string;
+	agentProjectName: string;
+	contentProjectFolder: string;
+	contentStage: string;
+	includeAllFilesInRecent: boolean;
+	recentNotesLimit: number;
+	showRecentAccessedNotes: boolean;
+	pinnedNotes: string[];
+	replaceNewTab: boolean;
+	openNotesInNewTab: boolean;
+	showTitleNavigationBar: "default" | "show" | "hide";
+	showCustomFooterText: boolean;
+	useRandomFooterText: boolean;
+	todayRandomEnFooterText: string; 
+	todayRandomZhFooterText: string; 
+	customFooterText: string;
+	scrollPosition: number; 
+	showStatBar: boolean;
+	lastVersionCheck: number; 
+	latestVersion: string;
+	searchExcludePaths: string[]; 
+	searchExcludeExtensions: string[];
+		pinnedNotesStyle: SectionStyleSettings;
+		recentNotesStyle: SectionStyleSettings;
+		backupMaxFiles: number;
+		tabFolderPaths: string[];
+		tabFolderRecursive: boolean;
+		newNoteTitleTemplate: string;
+		newNoteFolderPath: string;
+		newNoteConflict: "duplicate" | "open";
+	}
+
+export const DEFAULT_SETTINGS: StartPageSettings = {
+	creatorMode: false,
+	displayLanguage: "auto",
+	creatorInboxFolder: "01 需求",
+	creatorDraftFolder: "02 方案",
+	creatorDailyFolder: "04 项目日志",
+	creatorAcceptanceFolder: "03 验收",
+	agentProjectName: "",
+	contentProjectFolder: "",
+	contentStage: "",
+	includeAllFilesInRecent: true,
+	recentNotesLimit: 10,
+	showRecentAccessedNotes: true,
+	pinnedNotes: [],
+		replaceNewTab: true,
+		openNotesInNewTab: false,
+		showTitleNavigationBar: "default",
+	showCustomFooterText: false,
+	useRandomFooterText: false,
+	todayRandomEnFooterText: "",
+	todayRandomZhFooterText: "",
+	customFooterText: "",
+	scrollPosition: 0,
+	showStatBar: true,
+	lastVersionCheck: 0,
+	latestVersion: "",
+	searchExcludePaths: [],
+	searchExcludeExtensions: [],
+		pinnedNotesStyle: { ...DEFAULT_SECTION_STYLE },
+		recentNotesStyle: { ...DEFAULT_SECTION_STYLE },
+		backupMaxFiles: 5,
+		tabFolderPaths: [],
+		tabFolderRecursive: true,
+		newNoteTitleTemplate: "Untitled",
+		newNoteFolderPath: "",
+		newNoteConflict: "duplicate",
+	};

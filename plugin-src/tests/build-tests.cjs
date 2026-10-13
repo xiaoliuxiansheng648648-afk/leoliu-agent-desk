@@ -1,0 +1,2 @@
+const esbuild=require('esbuild');const path=require('node:path');
+esbuild.buildSync({stdin:{contents:'export {TFile,TFolder,Notice} from "obsidian";export {CreatorActions} from "./src/utils/creatoractions";export {NewNoteUtil} from "./src/utils/newnoteutil"; export {missingEvidence,projectNotes,phase} from "./src/utils/contentproject";',resolveDir:process.cwd(),loader:'ts'},bundle:true,platform:'node',format:'cjs',outfile:'tests/creator-bundle.cjs',alias:{obsidian:path.resolve('tests/obsidian-stub.cjs')},external:['moment']});
